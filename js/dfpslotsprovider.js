@@ -2,6 +2,15 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import DFPManager from './manager';
 
+// React.createContext is undefined for React < 16.3
+export const Context = React.createContext ? React.createContext({
+  dfpNetworkId: null,
+  dfpAdUnit: null,
+  dfpSizeMapping: null,
+  dfpTargetingArguments: null,
+  newSlotCallback: null,
+}) : null;
+
 export default class DFPSlotsProvider extends React.Component {
   static propTypes = {
     children: PropTypes.oneOfType([
@@ -42,14 +51,6 @@ export default class DFPSlotsProvider extends React.Component {
     ]),
   };
 
-  static childContextTypes = {
-    dfpNetworkId: PropTypes.string,
-    dfpAdUnit: PropTypes.string,
-    dfpSizeMapping: PropTypes.arrayOf(PropTypes.object),
-    dfpTargetingArguments: PropTypes.object,
-    newSlotCallback: PropTypes.func,
-  };
-
   static defaultProps = {
     autoLoad: true,
     autoReload: {
@@ -75,18 +76,12 @@ export default class DFPSlotsProvider extends React.Component {
     this.newSlotCallback = this.newSlotCallback.bind(this);
     this.applyConfigs = this.applyConfigs.bind(this);
     this.shouldReloadConfig = this.shouldReloadConfig.bind(this);
+    this.getContextValue = this.getContextValue.bind(this);
     this.loadAlreadyCalled = false;
     this.totalSlots = 0;
-  }
-
-  getChildContext() {
-    return {
-      dfpNetworkId: this.props.dfpNetworkId,
-      dfpAdUnit: this.props.adUnit,
-      dfpSizeMapping: this.props.sizeMapping,
-      dfpTargetingArguments: this.props.targetingArguments,
-      newSlotCallback: this.newSlotCallback,
-    };
+    if (Context === null) {
+      this.getChildContext = () => this.getContextValue();
+    }
   }
 
   componentDidMount() {
@@ -116,6 +111,16 @@ export default class DFPSlotsProvider extends React.Component {
     }
   }
 
+  getContextValue() {
+    return {
+      dfpNetworkId: this.props.dfpNetworkId,
+      dfpAdUnit: this.props.adUnit,
+      dfpSizeMapping: this.props.sizeMapping,
+      dfpTargetingArguments: this.props.targetingArguments,
+      newSlotCallback: this.newSlotCallback,
+    };
+  }
+
   applyConfigs() {
     DFPManager.configurePersonalizedAds(this.props.personalizedAds);
     DFPManager.configureSingleRequest(this.props.singleRequest);
@@ -127,7 +132,7 @@ export default class DFPSlotsProvider extends React.Component {
     DFPManager.setCollapseEmptyDivs(this.props.collapseEmptyDivs);
   }
 
-  // pretty strait-forward interface that children ads use to register
+  // pretty strait-forward interface that children ad slots use to register
   // with their DFPSlotProvider parent node.
   newSlotCallback() {
     this.totalSlots++;
@@ -167,8 +172,26 @@ export default class DFPSlotsProvider extends React.Component {
     return false;
   }
 
-
   render() {
-    return <div> {this.props.children} </div>;
+    const children = <div> {this.props.children} </div>;
+    if (Context === null) {
+      return children;
+    }
+    return (
+      <Context.Provider value={this.getContextValue()}>
+        {children}
+      </Context.Provider>
+    );
   }
+}
+
+if (Context === null) {
+  // React < 16.3
+  DFPSlotsProvider.childContextTypes = {
+    dfpNetworkId: PropTypes.string,
+    dfpAdUnit: PropTypes.string,
+    dfpSizeMapping: PropTypes.arrayOf(PropTypes.object),
+    dfpTargetingArguments: PropTypes.object,
+    newSlotCallback: PropTypes.func,
+  };
 }
